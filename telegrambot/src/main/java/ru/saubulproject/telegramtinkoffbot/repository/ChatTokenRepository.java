@@ -8,4 +8,6 @@ import ru.saubulproject.telegramtinkoffbot.entity.ChatTokenEntity;
 @Repository
 public interface ChatTokenRepository extends JpaRepository<ChatTokenEntity, Long>{
 
+	ChatTokenEntity findByChatId(Long chatId);
+
 }
