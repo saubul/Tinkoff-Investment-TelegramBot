@@ -14,7 +14,10 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -52,7 +55,7 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 			String param = callback[1];
 			
 			switch(action) {
-				case "COMMAND":
+				case "COMMAND": {
 					switch(param) {
 						case "PORTFOLIOS": {
 							List<TinkoffAccount> accounts = tinkoffService.getAccounts(tinkoffToken);
@@ -63,30 +66,29 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 											   .build());
 							break;
 						}
+						case "FIND": {
+							execute(SendMessage.builder()
+									   .chatId(message.getChatId())
+									   .text("Введите тикер: ")
+									   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
+								   .build());
+							break;
+						}
 					}
-				case "PORTFOLIO":
+					break;
+				}
+				case "PORTFOLIO": {
 					execute(SendMessage.builder()
 										   .chatId(message.getChatId())
 										   .text(tinkoffService.getPortfolioStatus(tinkoffToken, param))
 										   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
 									   .build());		
 					break;
+				}
 			}
 		} else {
 			registerUserTinkoffToken(message);
 		}
-	}
-
-	private List<InlineKeyboardButton> getPortfolioButtons(Message message, List<TinkoffAccount> accounts) {
-		List<InlineKeyboardButton> portfolioButtons = new ArrayList<>();
-		for(TinkoffAccount account: accounts) {
-			System.out.println(account.getId());
-			portfolioButtons.add(InlineKeyboardButton.builder()
-													 	.text(account.getName())
-													 	.callbackData("PORTFOLIO:" + account.getId())
-													 .build());
-		}
-		return portfolioButtons;
 	}
 
 	// Обработка Message
@@ -99,19 +101,72 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 				if(commandEntity.isPresent()) {
 					String command = commandEntity.get().getText().substring(commandEntity.get().getOffset(), commandEntity.get().getLength());
 					switch(command) {
-						case "/menu":
+						case "/start":{
+							execute(SendMessage.builder()
+									   .chatId(message.getChatId())
+									   .text("Здравствуйте! Этот телеграм бот предназначен для работы с Тинькофф Инвестициями. ")
+									   .replyMarkup(ReplyKeyboardMarkup.builder()
+											   							   .keyboard(getConstantMenuButtons(message))
+											   						   .build())
+								   .build());
+							break;
+						}
+						case "/menu": {
 							execute(SendMessage.builder()
 												   .chatId(message.getChatId())
 												   .text("Меню: ")
 												   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
 											   .build());
 							break;
+						}
 					}
 				}
+			} else if (message.hasText()) {
+				String text = message.getText();
+				switch(text) {
+					case "Портфели": {
+						List<TinkoffAccount> accounts = tinkoffService.getAccounts(tinkoffToken);
+						execute(SendMessage.builder()
+											   .chatId(message.getChatId())
+											   .text("Выберите портфель: ")
+											   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getPortfolioButtons(message, accounts)).build())
+										   .build());
+						break;
+					}
+					case "Найти инструмент по тикеру": {
+						execute(SendMessage.builder()
+								   .chatId(message.getChatId())
+								   .text("Введите тикер: ")
+								   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
+							   .build());
+						break;
+					}
+					default: {
+						execute(SendMessage.builder()
+								   .chatId(message.getChatId())
+								   .text(tinkoffService.findInstrumentByTicker(tinkoffToken, text))
+							   .build());
+						break;
+					}
+				}
+
 			}
 		} else {
 			registerUserTinkoffToken(message);
 		}
+	}
+
+	
+	private List<KeyboardRow> getConstantMenuButtons(Message message) {
+		List<KeyboardRow> keyboard = new ArrayList<>();
+		KeyboardRow keyboardRow1 = new KeyboardRow();
+		keyboardRow1.add(KeyboardButton.builder().text("Портфели").build());
+		
+		KeyboardRow keyboardRow2 = new KeyboardRow();
+		keyboardRow2.add(KeyboardButton.builder().text("Найти инструмент по тикеру").build());
+		keyboard.add(keyboardRow1);
+		keyboard.add(keyboardRow2);
+		return keyboard;
 	}
 
 	@SneakyThrows
@@ -133,11 +188,29 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 		}
 	}
 
+
+	// Кнопки выбора портфелей
+	private List<InlineKeyboardButton> getPortfolioButtons(Message message, List<TinkoffAccount> accounts) {
+		List<InlineKeyboardButton> portfolioButtons = new ArrayList<>();
+		for(TinkoffAccount account: accounts) {
+			portfolioButtons.add(InlineKeyboardButton.builder()
+													 	.text(account.getName())
+													 	.callbackData("PORTFOLIO:" + account.getId())
+													 .build());
+		}
+		return portfolioButtons;
+	}
+	
+	// Кнопки меню
 	private List<InlineKeyboardButton> getMenuButtons(Message message) {
 		List<InlineKeyboardButton> buttons = new ArrayList<>();
 		buttons.add(InlineKeyboardButton.builder()
 											.text("Список портфелей")
 											.callbackData("COMMAND:PORTFOLIOS")
+										.build());
+		buttons.add(InlineKeyboardButton.builder()
+											.text("Найти инструмент по тикеру")
+											.callbackData("COMMAND:FIND")
 										.build());
 		return buttons;
 	}

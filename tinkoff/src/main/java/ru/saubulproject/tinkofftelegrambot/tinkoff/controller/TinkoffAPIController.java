@@ -34,4 +34,9 @@ public class TinkoffAPIController {
 	public HttpEntity<TinkoffAccount[]> getAccountNames(@RequestParam("tinkoffToken") String tinkoffToken) {
 		return new ResponseEntity<>(tinkoffAPIService.getAccounts(tinkoffToken), HttpStatus.OK);
 	}
+	
+	@GetMapping("/findByTicker")
+	public String getInstrumentByTicker(@RequestParam("tinkoffToken") String tinkoffToken, @RequestParam("ticker") String ticker) {
+		return tinkoffAPIService.getInstrumentByTicker(tinkoffToken, ticker);
+	}
 }

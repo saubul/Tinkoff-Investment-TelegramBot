@@ -57,8 +57,12 @@ public class TiknoffServiceImpl implements TinkoffService{
 															  TinkoffAccount[].class, 
 															  tinkoffToken)
 												.getBody();
-		System.out.println(Arrays.asList(accounts));
 		return Arrays.asList(accounts);
+	}
+
+	@Override
+	public String findInstrumentByTicker(String tinkoffToken, String ticker) {
+		return restTemplate.getForObject(tinkoffConfig.getUrl() + "/findByTicker?tinkoffToken={tinkoffToken}&ticker={ticker}", String.class, tinkoffToken, ticker);
 	}
 	
 	

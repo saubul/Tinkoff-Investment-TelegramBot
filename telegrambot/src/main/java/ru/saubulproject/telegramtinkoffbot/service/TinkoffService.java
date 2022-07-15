@@ -17,6 +17,8 @@ public interface TinkoffService {
 	boolean checkToken(String text);
 
 	List<TinkoffAccount> getAccounts(String tinkoffToken);
+
+	String findInstrumentByTicker(String tinkoffToken, String ticker);
 	
 	
 }
