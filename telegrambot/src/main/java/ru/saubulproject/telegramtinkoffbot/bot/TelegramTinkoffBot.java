@@ -22,6 +22,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import ru.saubulproject.telegramtinkoffbot.dto.TinkoffAccount;
+import ru.saubulproject.telegramtinkoffbot.entity.ChatTokenEntity;
 import ru.saubulproject.telegramtinkoffbot.service.TinkoffService;
 
 @Component
@@ -62,7 +63,7 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 							execute(SendMessage.builder()
 												   .chatId(message.getChatId())
 												   .text("Выберите портфель: ")
-												   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getPortfolioButtons(message, accounts)).build())
+												   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getPortfolioNameButtons(message, accounts)).build())
 											   .build());
 							break;
 						}
@@ -78,11 +79,33 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 					break;
 				}
 				case "PORTFOLIO": {
-					execute(SendMessage.builder()
-										   .chatId(message.getChatId())
-										   .text(tinkoffService.getPortfolioStatus(tinkoffToken, param))
-										   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
-									   .build());		
+					switch(param) {
+						default: {
+							execute(SendMessage.builder()
+									   .chatId(message.getChatId())
+									   .text(tinkoffService.getPortfolioStatus(tinkoffToken, param))
+									   .parseMode("HTML")
+									   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
+								   .build());		
+							break;
+						}
+					}
+					break;
+				}
+				case "INSTRUMENT": {
+					switch(param) {
+						case "LIMIT": {
+							execute(SendMessage.builder()
+												   .chatId(message.getChatId())
+												   .text("Введите данные в виде: LIMIT: Тикер/Количество/Цена/Действие(BUY/SELL)/Название счета")
+											   .build());
+							break;
+						}
+						default: {
+							break;
+						}
+					
+					}
 					break;
 				}
 			}
@@ -101,16 +124,16 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 				if(commandEntity.isPresent()) {
 					String command = commandEntity.get().getText().substring(commandEntity.get().getOffset(), commandEntity.get().getLength());
 					switch(command) {
-						case "/start":{
-							execute(SendMessage.builder()
-									   .chatId(message.getChatId())
-									   .text("Здравствуйте! Этот телеграм бот предназначен для работы с Тинькофф Инвестициями. ")
-									   .replyMarkup(ReplyKeyboardMarkup.builder()
-											   							   .keyboard(getConstantMenuButtons(message))
-											   						   .build())
-								   .build());
-							break;
-						}
+//						case "/start":{
+//							execute(SendMessage.builder()
+//									   .chatId(message.getChatId())
+//									   .text("Здравствуйте! Этот телеграм бот предназначен для работы с Тинькофф Инвестициями. ")
+//									   .replyMarkup(ReplyKeyboardMarkup.builder()
+//											   							   .keyboard(getConstantMenuButtons(message))
+//											   						   .build())
+//								   .build());
+//							break;
+//						}
 						case "/menu": {
 							execute(SendMessage.builder()
 												   .chatId(message.getChatId())
@@ -129,7 +152,7 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 						execute(SendMessage.builder()
 											   .chatId(message.getChatId())
 											   .text("Выберите портфель: ")
-											   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getPortfolioButtons(message, accounts)).build())
+											   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getPortfolioNameButtons(message, accounts)).build())
 										   .build());
 						break;
 					}
@@ -141,11 +164,36 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 							   .build());
 						break;
 					}
-					default: {
+					case "Поменять Tinkoff API Token": {
+						tinkoffService.deleteUserTinkoffToken(message.getChatId());
 						execute(SendMessage.builder()
-								   .chatId(message.getChatId())
-								   .text(tinkoffService.findInstrumentByTicker(tinkoffToken, text))
-							   .build());
+											   .chatId(message.getChatId())
+											   .text("Введите новый Tinkoff API Token:")
+										   .build());
+						break;
+					}
+					default: {
+						if(text.startsWith("LIMIT:")) {
+							String[] request = text.substring(7).split("/");
+							String ticker = request[0];
+							String quantity = request[1];
+							String price = request[2];
+							String orderDirection = request[3];
+							String accountId = tinkoffService.getAccounts(tinkoffToken).stream().filter(account -> account.getName().equalsIgnoreCase(request[4])).findFirst().get().getId();
+							String response = tinkoffService.postOrder(tinkoffToken, ticker, quantity, price, orderDirection, accountId);
+							execute(SendMessage.builder()
+												   .chatId(message.getChatId())
+												   .text("ID заявки: " + response)
+												   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
+											   .build());
+
+						} else {
+							execute(SendMessage.builder()
+									   .chatId(message.getChatId())
+									   .text(tinkoffService.findInstrumentByTicker(tinkoffToken, text))
+									   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getInstrumentButtons(message)).build())
+								   .build());
+						}
 						break;
 					}
 				}
@@ -157,6 +205,18 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 	}
 
 	
+	// кнопки возможностей взаимодействия с портфелем
+	private List<InlineKeyboardButton> getInstrumentButtons(Message message) {
+		List<InlineKeyboardButton> instrumentButtons= getMenuButtons(message);
+		instrumentButtons.add(InlineKeyboardButton.builder()
+															.text("Выставить лимитную заявку")
+															.callbackData("INSTRUMENT:LIMIT")
+														.build());
+		return instrumentButtons;
+	}
+
+	
+	// постоянные кнопки меню
 	private List<KeyboardRow> getConstantMenuButtons(Message message) {
 		List<KeyboardRow> keyboard = new ArrayList<>();
 		KeyboardRow keyboardRow1 = new KeyboardRow();
@@ -164,33 +224,19 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 		
 		KeyboardRow keyboardRow2 = new KeyboardRow();
 		keyboardRow2.add(KeyboardButton.builder().text("Найти инструмент по тикеру").build());
+		
+		KeyboardRow keyboardRow3 = new KeyboardRow();
+		keyboardRow3.add(KeyboardButton.builder().text("Поменять Tinkoff API Token").build());
+		
 		keyboard.add(keyboardRow1);
 		keyboard.add(keyboardRow2);
+		keyboard.add(keyboardRow3);
 		return keyboard;
-	}
-
-	@SneakyThrows
-	private void registerUserTinkoffToken(Message message) {
-		if(!tinkoffService.checkToken(message.getText())) {
-			execute(SendMessage.builder()
-					   .chatId(message.getChatId())
-					   .text("Прежде чем начать пользоваться ботом, пожалуйста, введите токен для работы с Tinkoff Invest API: ")
-				   .build());
-		} else {
-			tinkoffService.addUserTinkoffToken(message.getText(), message.getChatId());
-			execute(SendMessage.builder()
-					   .chatId(message.getChatId())
-					   .text("Токен Tinkoff Invest API сохранен.")
-					   .replyMarkup(InlineKeyboardMarkup.builder()
-							   								.keyboardRow(getMenuButtons(message))
-							   							.build())
-				   .build());
-		}
 	}
 
 
 	// Кнопки выбора портфелей
-	private List<InlineKeyboardButton> getPortfolioButtons(Message message, List<TinkoffAccount> accounts) {
+	private List<InlineKeyboardButton> getPortfolioNameButtons(Message message, List<TinkoffAccount> accounts) {
 		List<InlineKeyboardButton> portfolioButtons = new ArrayList<>();
 		for(TinkoffAccount account: accounts) {
 			portfolioButtons.add(InlineKeyboardButton.builder()
@@ -215,6 +261,27 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 		return buttons;
 	}
 
+	// регистрация токена
+	@SneakyThrows
+	private void registerUserTinkoffToken(Message message) {
+		if(!tinkoffService.checkToken(message.getText())) {
+			execute(SendMessage.builder()
+					   .chatId(message.getChatId())
+					   .text("Здравствуйте! Прежде чем начать пользоваться ботом, пожалуйста, введите токен для работы с Tinkoff Invest API: ")
+				   .build());
+		} else {
+			ChatTokenEntity user = tinkoffService.addUserTinkoffToken(message.getText(), message.getChatId());
+			tinkoffService.addAccountsToUser(user);
+			execute(SendMessage.builder()
+					   .chatId(message.getChatId())
+					   .text("Токен Tinkoff Invest API сохранен.")
+					   .replyMarkup(ReplyKeyboardMarkup.builder()
+							   								.keyboard(getConstantMenuButtons(message))
+							   							.build())
+				   .build());
+		}
+	}
+	
 	public String getBotUsername() {
 		return botUsername;
 	}

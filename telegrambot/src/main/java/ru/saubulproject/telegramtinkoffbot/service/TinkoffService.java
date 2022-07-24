@@ -3,12 +3,13 @@ package ru.saubulproject.telegramtinkoffbot.service;
 import java.util.List;
 
 import ru.saubulproject.telegramtinkoffbot.dto.TinkoffAccount;
+import ru.saubulproject.telegramtinkoffbot.entity.ChatTokenEntity;
 
 public interface TinkoffService {
 
 	boolean checkUserTinkoffTokenRegistration(Long chatId);
 
-	void addUserTinkoffToken(String tinkoffToken, Long chatId);
+	ChatTokenEntity addUserTinkoffToken(String tinkoffToken, Long chatId);
 
 	String getToken(Long chatId);
 	
@@ -19,6 +20,12 @@ public interface TinkoffService {
 	List<TinkoffAccount> getAccounts(String tinkoffToken);
 
 	String findInstrumentByTicker(String tinkoffToken, String ticker);
+
+	void deleteUserTinkoffToken(Long chatId);
+
+	void addAccountsToUser(ChatTokenEntity user);
+
+	String postOrder(String tinkoffToken, String ticker, String quantity, String price, String orderDirection, String accountId);
 	
 	
 }

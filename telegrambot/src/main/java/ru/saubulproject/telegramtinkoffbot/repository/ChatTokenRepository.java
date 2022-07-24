@@ -10,4 +10,6 @@ public interface ChatTokenRepository extends JpaRepository<ChatTokenEntity, Long
 
 	ChatTokenEntity findByChatId(Long chatId);
 
+	void deleteByChatId(Long chatId);
+	
 }

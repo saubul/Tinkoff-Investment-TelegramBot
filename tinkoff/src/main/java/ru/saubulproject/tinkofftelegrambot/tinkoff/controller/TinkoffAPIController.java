@@ -15,6 +15,8 @@ import lombok.SneakyThrows;
 import ru.saubulproject.tinkofftelegrambot.tinkoff.dto.TinkoffAccount;
 import ru.saubulproject.tinkofftelegrambot.tinkoff.service.TinkoffAPIService;
 import ru.tinkoff.piapi.contract.v1.Account;
+import ru.tinkoff.piapi.contract.v1.OrderDirection;
+import ru.tinkoff.piapi.contract.v1.Quotation;
 import ru.tinkoff.piapi.core.InvestApi;
 
 @RestController
@@ -38,5 +40,15 @@ public class TinkoffAPIController {
 	@GetMapping("/findByTicker")
 	public String getInstrumentByTicker(@RequestParam("tinkoffToken") String tinkoffToken, @RequestParam("ticker") String ticker) {
 		return tinkoffAPIService.getInstrumentByTicker(tinkoffToken, ticker);
+	}
+	
+	@GetMapping("/limit")
+	public String postLimitOrder(@RequestParam("tinkoffToken") String tinkoffToken,
+								 @RequestParam("ticker") String ticker,
+								 @RequestParam("quantity") String quantity,
+								 @RequestParam("price") String price,
+								 @RequestParam("orderDirection") String orderDirection,
+								 @RequestParam("accountId") String accountId) {
+		return tinkoffAPIService.makeLimitOrder(tinkoffToken, ticker, quantity, price, orderDirection, accountId);
 	}
 }
