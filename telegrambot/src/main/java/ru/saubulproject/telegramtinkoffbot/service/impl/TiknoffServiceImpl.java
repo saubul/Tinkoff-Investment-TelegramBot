@@ -87,19 +87,28 @@ public class TiknoffServiceImpl implements TinkoffService{
 	}
 
 	@Override
-	public String postOrder(String tinkoffToken, String ticker, String quantity, String price, String orderDirection,
+	public String postLimitOrder(String tinkoffToken, String ticker, String quantity, String price, String orderDirection,
 			String accountId) {
-		return restTemplate.getForObject(tinkoffConfig.getUrl() + "/limit?tinkoffToken={tinkoffToken}&"
-																	   + "ticker={ticker}&"
-																	   + "quantity={quantity}&"
-																	   + "price={price}&"
-																	   + "orderDirection={orderDirection}&"
-																	   + "accountId={accountId}", String.class, tinkoffToken,
-																	   													  ticker,
-																	   													  quantity,
-																	   													  price,
-																	   													  orderDirection,
-																	   													  accountId);
+		return restTemplate.getForObject(tinkoffConfig.getUrl() + "/order/new_limit?tinkoffToken={tinkoffToken}&"
+																				 + "ticker={ticker}&"
+																				 + "quantity={quantity}&"
+																				 + "price={price}&"
+																				 + "orderDirection={orderDirection}&"
+																				 + "accountId={accountId}", String.class, tinkoffToken,
+																				   										  ticker,
+																				   										  quantity,
+																				   										  price,
+																				   										  orderDirection,
+																				   										  accountId);
+	}
+
+	@Override
+	public String cancelOrder(String tinkoffToken, String accountId, String orderId) {
+		return restTemplate.getForObject(tinkoffConfig.getUrl() + "/order/cancel_order?tinkoffToken={tinkoffToken}&"
+																					+ "accountId={accountId}&"
+																					+ "orderId={orderId}", String.class, tinkoffToken,
+																														 accountId,
+																														 orderId);
 	}
 	
 	

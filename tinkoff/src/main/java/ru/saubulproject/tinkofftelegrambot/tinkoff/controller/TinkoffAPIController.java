@@ -42,7 +42,7 @@ public class TinkoffAPIController {
 		return tinkoffAPIService.getInstrumentByTicker(tinkoffToken, ticker);
 	}
 	
-	@GetMapping("/limit")
+	@GetMapping("/order/new_limit")
 	public String postLimitOrder(@RequestParam("tinkoffToken") String tinkoffToken,
 								 @RequestParam("ticker") String ticker,
 								 @RequestParam("quantity") String quantity,
@@ -50,5 +50,12 @@ public class TinkoffAPIController {
 								 @RequestParam("orderDirection") String orderDirection,
 								 @RequestParam("accountId") String accountId) {
 		return tinkoffAPIService.makeLimitOrder(tinkoffToken, ticker, quantity, price, orderDirection, accountId);
+	}
+	
+	@GetMapping("/order/cancel_order")
+	public String cancelOrder(@RequestParam("tinkoffToken") String tinkoffToken, 
+								   @RequestParam("accountId") String accountId,
+								   @RequestParam("orderId") String orderId) {
+		return tinkoffAPIService.cancelOrder(tinkoffToken, accountId, orderId);
 	}
 }

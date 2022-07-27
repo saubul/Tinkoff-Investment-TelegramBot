@@ -15,4 +15,7 @@ public interface TinkoffAPIService {
 	String getInstrumentByTicker(String tinkoffToken, String ticker);
 	
 	String makeLimitOrder(String tinkoffToken, String ticker, String quantity, String price, String direction, String accountId);
+	
+	String cancelOrder(String tinkoffToken, String accountId, String orderId);
 }
+ 

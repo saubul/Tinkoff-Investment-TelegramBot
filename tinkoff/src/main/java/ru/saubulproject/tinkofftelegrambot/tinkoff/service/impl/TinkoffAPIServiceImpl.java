@@ -17,7 +17,9 @@ import ru.saubulproject.tinkofftelegrambot.tinkoff.dto.TinkoffAccount;
 import ru.saubulproject.tinkofftelegrambot.tinkoff.service.TinkoffAPIService;
 import ru.tinkoff.piapi.contract.v1.Account;
 import ru.tinkoff.piapi.contract.v1.Instrument;
+import ru.tinkoff.piapi.contract.v1.MoneyValue;
 import ru.tinkoff.piapi.contract.v1.OrderDirection;
+import ru.tinkoff.piapi.contract.v1.OrderState;
 import ru.tinkoff.piapi.contract.v1.OrderType;
 import ru.tinkoff.piapi.contract.v1.PostOrderResponse;
 import ru.tinkoff.piapi.contract.v1.Quotation;
@@ -42,16 +44,16 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 		InvestApi investApi = getInvestApi(tinkoffToken);
 		
 		UsersService usersService = investApi.getUserService();
-		List<Account> accounts = usersService.getAccounts().get();
+		List<Account> accounts = usersService.getAccountsSync();
 		
-		OrdersService ordersService = investApi.getOrdersService();
+		//OrdersService ordersService = investApi.getOrdersService();
 		
 		for(Account account: accounts) {
 			if(account.getId().equals(accountId)) {
 				status.append("<b>" + account.getName() + "</b>:");
 			}
 		}
-		Portfolio portfolio = investApi.getOperationsService().getPortfolio(accountId).get();
+		Portfolio portfolio = investApi.getOperationsService().getPortfolioSync(accountId);
 		List<Position> positions = portfolio.getPositions();
 		InstrumentsService instrumentsService = investApi.getInstrumentsService();
 		
@@ -71,20 +73,47 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 //				price = price.add(position.getCurrentPrice().getValue().multiply(position.getQuantity().abs()));
 //			}
 		}
-		//status.append("\nСуммарная стоимость портфеля: " + decimalFormat.format(price) + " \u20BD");
-		//status.append("\n" + ordersService.);
 		status.append(positionsString.toString());
-		status.append("\n");
+		//status.append("\nСуммарная стоимость портфеля: " + decimalFormat.format(price) + " \u20BD");
+		
+		status.append("\n<i>Текущие заявки</i>: ");
+		
+		List<OrderState> orders = investApi.getOrdersService().getOrdersSync(accountId);
+		for(OrderState order: orders) {
+			status.append("\n    ID: " + order.getOrderId());
+			status.append("\n    Тикер: " + instrumentsService.getInstrumentByFigiSync(order.getFigi()).getTicker());
+			status.append("\n    Количество: " + order.getLotsRequested());
+			status.append("\n    Цена: " + makeNormalPrice(tinkoffToken, order.getFigi(), order.getInitialOrderPrice()) + " " + order.getCurrency());
+			//status.append("\n	:" + );
+		}
 		return status.toString();
 	}
 	
+	private String makeNormalPrice(String tinkoffToken, String figi, MoneyValue money) {
+		InvestApi investApi = getInvestApi(tinkoffToken);
+		int minPriceIncrement = investApi.getInstrumentsService().getInstrumentByFigiSync(figi).getMinPriceIncrement().getNano();
+		StringBuilder price = new StringBuilder();
+		price.append(money.getUnits());
+		price.append(".");
+		price.append(money.getNano()/minPriceIncrement);
+		return price.toString();
+	}
 	
+	private String makeNormalPrice(String tinkoffToken, String figi, Quotation quotation) {
+		InvestApi investApi = getInvestApi(tinkoffToken);
+		int minPriceIncrement = investApi.getInstrumentsService().getInstrumentByFigiSync(figi).getMinPriceIncrement().getNano();
+		StringBuilder price = new StringBuilder();
+		price.append(quotation.getUnits());
+		price.append(".");
+		price.append(quotation.getNano()/minPriceIncrement);
+		return price.toString();
+	}
 
 	@Override
 	@SneakyThrows
 	public TinkoffAccount[] getAccounts(String tinkoffToken) {
 		InvestApi investApi = getInvestApi(tinkoffToken);
-		List<Account> accounts = investApi.getUserService().getAccounts().get();
+		List<Account> accounts = investApi.getUserService().getAccountsSync();
 		TinkoffAccount[] tinkoffAccounts = new TinkoffAccount[accounts.size()];
 		int i = 0;
 		
@@ -104,23 +133,16 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 		
 		Instrument instr;
 		try {
-			instr = instrumentsService.getInstrumentByTicker(ticker, "SPBXM").get();
-			Quotation priceOfInstr = investApi.getMarketDataService().getLastPrices(List.of(instr.getFigi())).get().get(0).getPrice();
+			instr = instrumentsService.getInstrumentByTickerSync(ticker, "SPBXM");
+			String figi = instr.getFigi();
+			BigDecimal price = getInstrumentPriceByFigi(tinkoffToken, figi);
+			
 			instrument.append("Название: " + instr.getName());
 			instrument.append("\nТикер: " + instr.getTicker());
 			instrument.append("\nТип: " + instr.getInstrumentType().toUpperCase());
 			instrument.append("\nБиржа: " + instr.getExchange());
-			String nanoPrice =  String.valueOf(priceOfInstr.getNano());
-			if(nanoPrice.length() == 8) {
-				nanoPrice = "0" + nanoPrice;
-			}
-			nanoPrice = nanoPrice.replaceFirst("00+", "");
-			if(nanoPrice.length() == 0) {
-				nanoPrice = "00";
-			} else if (nanoPrice.length() == 1) {
-				nanoPrice = nanoPrice + "0";
-			}
-			instrument.append("\nЦена: " + priceOfInstr.getUnits() + "." + nanoPrice + " " + instr.getCurrency().toUpperCase());
+			instrument.append("\nЦена: " + price + " " + instr.getCurrency().toUpperCase());
+			
 		} catch (Exception e) {
 			instrument.append("Инструмент по заданному тикеру не найден.");
 		} 
@@ -129,23 +151,11 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 	
 	private BigDecimal getInstrumentPriceByFigi(String tinkoffToken, String figi) {
 		InvestApi investApi = InvestApi.create(tinkoffToken);
-		InstrumentsService instrumentsService = investApi.getInstrumentsService();
-		Instrument instr;
 		StringBuilder price = new StringBuilder();
 		try {
-			instr = instrumentsService.getInstrumentByFigi(figi).get();
-			Quotation priceOfInstr = investApi.getMarketDataService().getLastPrices(List.of(instr.getFigi())).get().get(0).getPrice();
-
-			String nanoPrice =  String.valueOf(priceOfInstr.getNano());
-			if(nanoPrice.length() == 8) {
-				nanoPrice = "0" + nanoPrice;
-			}
-			nanoPrice = nanoPrice.replaceFirst("00+", "");
-			if(nanoPrice.length() == 0) {
-				nanoPrice = "00";
-			} else if (nanoPrice.length() == 1) {
-				nanoPrice = nanoPrice + "0";
-			}
+			Quotation priceOfInstr = investApi.getMarketDataService().getLastPricesSync(List.of(figi)).get(0).getPrice();
+			int minPriceIncrement = investApi.getInstrumentsService().getInstrumentByFigiSync(figi).getMinPriceIncrement().getNano();
+			String nanoPrice =  String.valueOf(priceOfInstr.getNano()/minPriceIncrement);
 			price.append(priceOfInstr.getUnits() + "." + nanoPrice);
 		} catch (Exception e) {
 		} 
@@ -153,9 +163,11 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 	}
 	
 	
+	// Если в кэше есть запись, что с заданным токеном создавалось соединение, то нового создаваться не будет
 	@Cacheable
 	private InvestApi getInvestApi(String tinkoffToken) {
-		return InvestApi.create(tinkoffToken);
+		InvestApi investApi = InvestApi.create(tinkoffToken);
+		return investApi;
 	}
 
 
@@ -169,10 +181,15 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 								 String orderDirection,
 								 String accountId) {
 		InvestApi investApi = getInvestApi(tinkoffToken);
+		String figi = investApi.getInstrumentsService().getInstrumentByTickerSync(ticker, "SPBXM").getFigi();
+		
 		OrdersService ordersService = investApi.getOrdersService();
+		
+		int minPriceIncrement = investApi.getInstrumentsService().getInstrumentByFigiSync(figi).getMinPriceIncrement().getNano();
+
 		Quotation qPrice = Quotation.newBuilder()
 										.setUnits(Long.valueOf(price.split("\\.")[0]))
-										.setNano(Integer.valueOf(price.split("\\.")[1]))
+										.setNano(Integer.valueOf(price.split("\\.")[1]) * minPriceIncrement)
 									.build();
 		OrderDirection oDir = OrderDirection.ORDER_DIRECTION_UNSPECIFIED;
 		if(orderDirection.equalsIgnoreCase("BUY")) {
@@ -180,14 +197,22 @@ public class TinkoffAPIServiceImpl implements TinkoffAPIService{
 		} else if(orderDirection.equalsIgnoreCase("SELL")) {
 			oDir = OrderDirection.ORDER_DIRECTION_SELL;
 		}
-		PostOrderResponse response = ordersService.postOrder(investApi.getInstrumentsService().getInstrumentByTickerSync(ticker, "SPBXM").getFigi(), 
-															 Long.valueOf(quantity), 
-															 qPrice, 
-															 oDir, 
-															 accountId, 
-															 OrderType.ORDER_TYPE_LIMIT, 
-															 UUID.randomUUID().toString()).get();
+
+		PostOrderResponse response = ordersService.postOrderSync(figi, 
+															 	 Long.valueOf(quantity), 
+															 	 qPrice, 
+																 oDir, 
+																 accountId, 
+																 OrderType.ORDER_TYPE_LIMIT, 
+																 UUID.randomUUID().toString());
 		return response.getOrderId();
+	}
+
+	@Override
+	public String cancelOrder(String tinkoffToken, String accountId, String orderId) {
+		InvestApi investApi = getInvestApi(tinkoffToken);
+		investApi.getOrdersService().cancelOrderSync(accountId, orderId);
+		return "Заявка отменена.";
 	}
 	
 }

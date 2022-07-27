@@ -25,7 +25,7 @@ public interface TinkoffService {
 
 	void addAccountsToUser(ChatTokenEntity user);
 
-	String postOrder(String tinkoffToken, String ticker, String quantity, String price, String orderDirection, String accountId);
+	String postLimitOrder(String tinkoffToken, String ticker, String quantity, String price, String orderDirection, String accountId);
 	
-	
+	String cancelOrder(String tinkoffToken, String accountId, String orderId);
 }

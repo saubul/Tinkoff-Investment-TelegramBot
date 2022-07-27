@@ -172,22 +172,39 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 										   .build());
 						break;
 					}
+					case "Отменить заявку" : {
+						execute(SendMessage.builder()
+								   .chatId(message.getChatId())
+								   .text("Введите данные в виде: ORDER: Название счёта/ID заявки")
+							   .build());
+						break;
+					}
 					default: {
 						if(text.startsWith("LIMIT:")) {
-							String[] request = text.substring(7).split("/");
+							String[] request = text.substring(6).trim().split("/");
 							String ticker = request[0];
 							String quantity = request[1];
 							String price = request[2];
 							String orderDirection = request[3];
 							String accountId = tinkoffService.getAccounts(tinkoffToken).stream().filter(account -> account.getName().equalsIgnoreCase(request[4])).findFirst().get().getId();
-							String response = tinkoffService.postOrder(tinkoffToken, ticker, quantity, price, orderDirection, accountId);
+							String response = tinkoffService.postLimitOrder(tinkoffToken, ticker, quantity, price, orderDirection, accountId);
 							execute(SendMessage.builder()
 												   .chatId(message.getChatId())
 												   .text("ID заявки: " + response)
 												   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
 											   .build());
 
-						} else {
+						} else if(text.startsWith("ORDER:")) {
+							String[] request = text.substring(6).trim().split("/");
+							String accountId = tinkoffService.getAccounts(tinkoffToken).stream().filter(account -> account.getName().equalsIgnoreCase(request[0])).findFirst().get().getId();
+							String orderId = request[1];
+							execute(SendMessage.builder()
+									   .chatId(message.getChatId())
+									   .text(tinkoffService.cancelOrder(tinkoffToken, accountId, orderId))
+									   .replyMarkup(InlineKeyboardMarkup.builder().keyboardRow(getMenuButtons(message)).build())
+								   .build());
+						}
+						else {
 							execute(SendMessage.builder()
 									   .chatId(message.getChatId())
 									   .text(tinkoffService.findInstrumentByTicker(tinkoffToken, text))
@@ -228,9 +245,13 @@ public class TelegramTinkoffBot extends TelegramLongPollingBot{
 		KeyboardRow keyboardRow3 = new KeyboardRow();
 		keyboardRow3.add(KeyboardButton.builder().text("Поменять Tinkoff API Token").build());
 		
+		KeyboardRow keyboardRow4 = new KeyboardRow();
+		keyboardRow4.add(KeyboardButton.builder().text("Отменить заявку").build());
+		
 		keyboard.add(keyboardRow1);
 		keyboard.add(keyboardRow2);
 		keyboard.add(keyboardRow3);
+		keyboard.add(keyboardRow4);
 		return keyboard;
 	}
 
